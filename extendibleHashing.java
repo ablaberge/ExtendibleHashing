@@ -90,7 +90,7 @@ class globalDirectory {
     }
 
     public boolean exists (String key) {
-        for(bucket b:buckets){
+        for(bucket b:this.buckets){
             if (Arrays.asList(b.keys).contains(key)){
                 return true;
             }
@@ -99,7 +99,10 @@ class globalDirectory {
     }
 
     public void printEHI() {
-        System.out.println("Global("+gd.globalIndex+")");
+        System.out.println("Global("+this.globalIndex+")");
+        for (bucket b : this.buckets) {
+            System.out.println(b.pattern+": Local("+b.localDepth+")["+b.address+"*] = "+Arrays.toString(b.keys));
+        }
     }
 }
 
@@ -107,11 +110,13 @@ class bucket {
     int localDepth;
     String pattern;
     String keys[];
+    String address;
 
     bucket() {
         this.localDepth = 0;
         this.pattern = null;
         this.keys = new String[0];
+        this.address = null;
     }
 
     public void changePattern(String newPattern) {

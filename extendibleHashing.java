@@ -4,6 +4,22 @@ import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
 
+/* 
+ * Author: Annika Laberge
+ * Date: 11/27/2024
+ * 
+ * Description: This java program simulates an extensible hash indexing database. When called,
+ * it expects two ints as input: maximum bucket size and maximum key length. It then creates 
+ * a defualt database and waits for further input. It expects in input in one of the following
+ * formats: 
+ * i <key> - inserts key
+ * s <key> - searches for key
+ * p - prints database
+ * q - quits program
+ * Both search and insert run in O(1) time. 
+ */
+
+
 public class extendibleHashing {
 
     public static void main(String args[]) {
@@ -113,8 +129,8 @@ class globalDirectory {
         b.localAddress = b.localAddress.length() > 0 ? b.localAddress + "0" : "0";
 
         for (String k : rehashKeys) {
-            String bucketPrefix = k.substring(0, newBucket.localDepth);
-            if (bucketPrefix.equals(newBucket.localAddress)) {
+            String bucketSigBits = k.substring(0, newBucket.localDepth);
+            if (bucketSigBits.equals(newBucket.localAddress)) {
                 newBucket.keys.add(k);
             } else {
                 b.keys.add(k);

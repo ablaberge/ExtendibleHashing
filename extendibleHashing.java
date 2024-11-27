@@ -1,5 +1,5 @@
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
@@ -12,9 +12,11 @@ public class extendibleHashing {
         int maxKeyLength = Integer.parseInt(args[1]);
 
         if (maxBucketSize <= 0) {
-            throw new Error("Block size must be at least 1.");
+            System.out.println("Error: Block size must be at least 1.");
+            return;
         } else if (maxKeyLength <= 0) {
-            throw new Error("Keys must be at least 1 bit.");
+            System.out.println("Error: Keys must be at least 1 bit.");
+            return;
         }
 
         globalDirectory gd = new globalDirectory(); // Create empty, default hash structure
@@ -31,42 +33,43 @@ public class extendibleHashing {
                 case "i": // Insert new key
                     String newKey = input[1];
                     if (newKey.length() > maxKeyLength) {
-                        throw new Error("Key exceeds length " + maxKeyLength);
+                        System.out.println("Error: Key exceeds length " + maxKeyLength);
+                    } else {
+                        gd.insertKey(newKey, maxBucketSize);
                     }
-                    gd.insertKey(newKey, maxBucketSize);
+                    break;
 
                 case "s": // Search for key
                     String searchKey = input[1];
                     if (searchKey.length() > maxKeyLength) {
-                        throw new Error("Key exceeds length " + maxKeyLength);
+                        System.out.println("Error: Key exceeds length " + maxKeyLength);
                     } else if (gd.exists(searchKey)) {
                         System.out.println(searchKey + " FOUND");
                     } else {
                         System.out.println(searchKey + " NOT FOUND");
                     }
+                    break;
 
                 case "p": // Print extendible hash index
                     gd.printEHI();
+                    break;
 
                 case "q": // Quit program
                     scanner.close();
                     return;
             }
-
         }
-
     }
-
 }
 
 class globalDirectory {
     int globalDepth;
-    Map<String, bucket> buckets; // K = global address, V = bucket
+    Map<String, bucket> buckets = new HashMap<>(); // K = global address, V = bucket
     List<String> globalAddresses = new ArrayList<>();
 
     globalDirectory() {
         this.globalDepth = 0;
-        this.buckets.put("", new bucket(0, new String[0], ""));
+        this.buckets.put("", new bucket(0, new ArrayList<>(), ""));
     }
 
     public void addBucket(String globalAddress, bucket b) {
@@ -75,106 +78,102 @@ class globalDirectory {
     }
 
     public void insertKey(String newKey, int maxBucketSize) {
-
         if (exists(newKey)) {
             System.out.println("FAILED");
-        } else {
-            String sigBits = newKey.substring(0, globalDepth);
-            bucket b = buckets.get(sigBits);
-            if (b.keys.length < maxBucketSize) { // Trivial case: we have room in the bucket, so we add the new key
-                b.addKey(newKey);
-            } else { // Overflow case: we must split the bucket
-                if (this.globalDepth == b.localDepth) { // Case i = Jb: the global directory must grow
-                    globalDepth++; // Double the size of the directory
+            return;
+        }
 
-                    globalAddresses.addAll(globalAddresses);
-                    for (int i = 0; i < globalAddresses.size() / 2; i++) {
-                        String oldAddress = globalAddresses.get(i);
-                        globalAddresses.set(i, oldAddress + "0");
-                    }
-                    for (int i = globalAddresses.size() / 2; i < globalAddresses.size(); i++) {
-                        String oldAddress = globalAddresses.get(i);
-                        globalAddresses.set(i, oldAddress + "1");
+        String sigBits = globalDepth > 0 ? newKey.substring(0, globalDepth) : "";
+        bucket b = buckets.get(sigBits);
 
-                    }
-
-                }
-
-            }
-
-            bucket newBucket = new bucket(++b.localDepth, new String[0], b.localAddress + "1"); // Append either 1
-            this.buckets.put(newBucket.localAddress, newBucket);
-            this.buckets.remove(b.localAddress);
-            b.localAddress = b.localAddress + "0"; // or 0 to the local addresses of b and bnew
-            this.buckets.put(b.localAddress, b);
-
-            // Rehash according to new local addresses
-            String keysToRehash[] = b.keys;
-            keysToRehash[keysToRehash.length] = newKey;
-            b.keys = new String[0];
-            for (String k : keysToRehash) {
-                if (k.equals(b.localAddress)) {
-                    b.keys[b.keys.length] = k;
-                } else {
-                    newBucket.keys[newBucket.keys.length] = k;
-                }
-            }
-
+        if (b.keys.size() < maxBucketSize) { // Trivial case: bucket isn't full, so just add key.
+            b.addKey(newKey);
             System.out.println("SUCCESS");
+            return;
         }
 
-    }
+        if (b.localDepth == globalDepth) { // Case i == Jb: we have to double the directory size
+            globalDepth++;
 
-    
+            List<String> newGlobalAddresses = new ArrayList<>();
+            for (String address : globalAddresses) {
+                newGlobalAddresses.add(address + "0");
+                newGlobalAddresses.add(address + "1");
+            }
+            globalAddresses = newGlobalAddresses;
+        }
 
-    // Search to find a given key - runs in
-    public boolean exists(String key) {
-        String sigBits = key.substring(0, globalDepth - 1);
-        if (buckets.containsKey(sigBits)) { // Find the right bucket
-            bucket b = buckets.get(sigBits);
-            if (Arrays.asList(b.keys).contains(key)) { // Check if it contains our search key
-                return true;
+        bucket newBucket = new bucket(b.localDepth + 1, new ArrayList<>(),
+                b.localAddress.length() > 0 ? b.localAddress + "1" : "1");
+
+        List<String> rehashKeys = new ArrayList<>(b.keys);
+        rehashKeys.add(newKey);
+        b.keys.clear();
+        b.localDepth++;
+        b.localAddress = b.localAddress.length() > 0 ? b.localAddress + "0" : "0";
+
+        for (String k : rehashKeys) {
+            String bucketPrefix = k.substring(0, newBucket.localDepth);
+            if (bucketPrefix.equals(newBucket.localAddress)) {
+                newBucket.keys.add(k);
             } else {
-                return false;
+                b.keys.add(k);
             }
         }
-        return false; // If none of our bucket addresses match the key's sig bits, it doesn't exist
+
+        buckets.put(b.localAddress, b);
+        buckets.put(newBucket.localAddress, newBucket);
+
+        for (int i = 0; i < globalAddresses.size(); i++) {
+            String addr = globalAddresses.get(i);
+            if (addr.startsWith(b.localAddress)) {
+                buckets.put(addr, b);
+            }
+            if (addr.startsWith(newBucket.localAddress)) {
+                buckets.put(addr, newBucket);
+            }
+        }
+
+        System.out.println("SUCCESS");
     }
 
+    public boolean exists(String key) {
+        String sigBits = key.substring(0, globalDepth);
+        if (buckets.containsKey(sigBits)) {
+            bucket b = buckets.get(sigBits);
+            return b.keys.contains(key);
+        }
+        return false;
+    }
 
     public void printEHI() {
         System.out.println("Global(" + this.globalDepth + ")");
-        for (Map.Entry<String, bucket> entry : this.buckets.entrySet()) {
-            bucket b = entry.getValue();
-            String key = entry.getKey();
+        for (String globalAddr : globalAddresses) {
+            bucket b = buckets.get(globalAddr);
             System.out.println(
-                    key + ": Local(" + b.localDepth + ")[" + b.localAddress + "*] = " + Arrays.toString(b.keys));
+                    globalAddr + ": Local(" + b.localDepth + ")[" + b.localAddress + "*] = " + b.keys.toString());
         }
     }
-
 }
 
 class bucket {
     int localDepth;
-    String keys[];
+    ArrayList<String> keys;
     String localAddress;
 
-    // Generic empty bucket
     bucket() {
         this.localDepth = 0;
-        this.keys = new String[0];
+        this.keys = new ArrayList<>();
         this.localAddress = "";
     }
 
-    // Bucket with specified contents
-    bucket(int localDepth, String keys[], String localAddress) {
+    bucket(int localDepth, ArrayList<String> keys, String localAddress) {
         this.localDepth = localDepth;
         this.keys = keys;
         this.localAddress = localAddress;
     }
 
     public void addKey(String key) {
-        keys[keys.length] = key;
+        keys.add(key);
     }
-
 }

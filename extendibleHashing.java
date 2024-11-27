@@ -1,4 +1,5 @@
 import java.util.Arrays;
+import java.util.Map;
 import java.util.Scanner;
 
 public class extendibleHashing {
@@ -14,9 +15,8 @@ public class extendibleHashing {
             throw new Error("Keys must be at least 1 bit.");
         }
 
-        globalDirectory gd = new globalDirectory(); // Create empty, default hash structure
-        bucket b0 = new bucket();
-        gd.addBucket(b0);
+        globalDirectory gd = new globalDirectory(maxBucketSize); // Create empty, default hash structure
+        gd.addBucket(0, new String[maxBucketSize], "", "");
 
         Scanner scanner = new Scanner(System.in);
         String input[];
@@ -58,17 +58,15 @@ public class extendibleHashing {
 
 class globalDirectory {
     int globalIndex;
-    bucket buckets[];
-    int numBuckets = (int) Math.pow(2, this.globalIndex);
-    String globalAddresses[];
+    Map<String, bucket> buckets; // K = global address, V = bucket
 
-    globalDirectory() {
+    globalDirectory(int maxBucketSize) {
         this.globalIndex = 0;
-        this.buckets = new bucket[1];
+        this.buckets.put("", new bucket(0, new String[maxBucketSize], ""));
     }
 
-    public void addBucket(bucket b) {
-        this.buckets[numBuckets - 1] = b;
+    public void addBucket(int localDepth, String[] keys, String localAddress, String globalAddress) {
+        this.buckets.put(globalAddress, new bucket(localDepth, keys, localAddress));
 
     }
 
@@ -78,59 +76,50 @@ class globalDirectory {
             System.out.println("FAILED");
         } else {
 
-            // to-do: implement insert algo
-
             System.out.println("SUCCESS");
         }
 
     }
 
-    // to-do: fix this to use the correct search algo
+    // Search to find a given key - runs in
     public boolean exists(String key) {
-
         String sigBits = key.substring(0, globalIndex - 1);
-        int counter = 0;
-        for (String a : globalAddresses) {
-            if (a.equals(sigBits)) { // Find the right bucket
-                if (Arrays.asList(buckets[counter].keys).contains(key)) { // Check if it contains our search key
-                    return true;
-                } else {
-                    return false;
-                }
+        if (buckets.containsKey(sigBits)) { // Find the right bucket
+            bucket b = buckets.get(sigBits);
+            if (Arrays.asList(b.keys).contains(key)) { // Check if it contains our search key
+                return true;
+            } else {
+                return false;
             }
-            counter++;
         }
-        return false;
+        return false; // If none of our bucket addresses match the key's sig bits, it doesn't exist
     }
 
     public void printEHI() {
         System.out.println("Global(" + this.globalIndex + ")");
-        for (bucket b : this.buckets) {
+        for (Map.Entry<String, bucket> entry : this.buckets.entrySet()) {
+            bucket b = entry.getValue();
+            String key = entry.getKey();
             System.out.println(
-                    b.pattern + ": Local(" + b.localDepth + ")[" + b.localAddress + "*] = " + Arrays.toString(b.keys));
+                    key + ": Local(" + b.localDepth + ")[" + b.localAddress + "*] = " + Arrays.toString(b.keys));
         }
     }
+
 }
 
 class bucket {
     int localDepth;
-    String pattern;
     String keys[];
     String localAddress;
 
-    bucket() {
-        this.localDepth = 0;
-        this.pattern = null;
-        this.keys = new String[0];
-        this.localAddress = null;
-    }
-
-    public void changePattern(String newPattern) {
-        this.pattern = newPattern;
+    bucket(int localDepth, String keys[], String localAddress) {
+        this.localDepth = localDepth;
+        this.keys = keys;
+        this.localAddress = localAddress;
     }
 
     public void addKey(String key) {
-        this.keys[localDepth] = key;
+        keys[keys.length] = key;
     }
 
 }
